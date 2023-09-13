@@ -56,6 +56,7 @@ size = 5;
 divisions = 10;
 let planeGeometry = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let planeGeometryDefault = new THREE.PlaneGeometry( size, size, divisions, divisions );
+let projectedPlaneGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
 
 let oceanGrid = new THREE.LineSegments( new THREE.WireframeGeometry( planeGeometry));
 oceanGrid.material.depthTest = false;
@@ -63,12 +64,20 @@ oceanGrid.material.opacity = 1.0;
 oceanGrid.material.transparent = true;
 oceanGrid.frustrumculled = false;
 
+let oceanGridProjected = new THREE.LineSegments( new THREE.WireframeGeometry( projectedPlaneGeom));
+oceanGridProjected.material.depthTest = false;
+oceanGridProjected.material.opacity = 1.0;
+oceanGridProjected.material.transparent = true;
+oceanGridProjected.frustrumculled = false;
+
 scene.add( oceanGrid );
+scene.add( oceanGridProjected );
 
 
 
 let tempVec4 = new THREE.Vector4();
 let tempVec4a = new THREE.Vector4();
+let tempVec4b = new THREE.Vector4();
 function updatePlane(){
   // Temporal, moves the vertices in front of camera using THREE operations
   //updateObjectMatrixAccordingToCamera(oceanGrid);
@@ -76,12 +85,14 @@ function updatePlane(){
 
   let defaultVertices = planeGeometryDefault.attributes.position.array;
   let vertices = planeGeometry.attributes.position.array;
+  let projectedVertices = projectedPlaneGeom.attributes.position.array;
   let numVertices = vertices.length/3;
   
 
   for (let i = 0; i < numVertices; i++){
     // Use temp vector
     tempVec4.set(defaultVertices[i*3], defaultVertices[i*3 + 1], defaultVertices[i*3 + 2], 1);
+    
     // Move vertices in front of the camera
     camera.translateZ(-10);
     camera.updateMatrix();
@@ -92,25 +103,40 @@ function updatePlane(){
       tempVec4.divideScalar(tempVec4.w);
 
     // Calculate intersection with xz plane and camera ray
+    let rayDirection = tempVec4a.subVectors(tempVec4, camera.position);
+    // Ray is not parallel to the horizon
+    if (rayDirection.y !== 0){
+      let t = (0 - camera.position.y) / rayDirection.y;
+      // Intersection point
+      tempVec4b = tempVec4b.copy(camera.position).add(rayDirection.multiplyScalar(t));
+    }
+
 
     // Reassign position to vertex
     if (isNaN(tempVec4.x) || isNaN(tempVec4.y) || isNaN(tempVec4.z) || isNaN(tempVec4.w)){
       debugger;
     }
+    // In front of the camera
     vertices[i*3] = tempVec4.x;
     vertices[i*3 + 1] = tempVec4.y; 
     vertices[i*3 + 2] = tempVec4.z;
+    // On the XZ plane
+    projectedVertices[i*3] = tempVec4b.x;
+    projectedVertices[i*3 + 1] = tempVec4b.y; 
+    projectedVertices[i*3 + 2] = tempVec4b.z;
+
   }
-  //console.log(camera.matrix.elements[0]);
-  //console.log(tempVec4.z);
-  //console.log(defaultVertices[0])
   // Reset matrx
 
   // Update geometry
   let geom = oceanGrid.geometry;
   oceanGrid.geometry.dispose();
   oceanGrid.geometry = new THREE.WireframeGeometry(geom.parameters.geometry);
-  
+
+  geom = oceanGridProjected.geometry;
+  oceanGridProjected.geometry.dispose();
+  oceanGridProjected.geometry = new THREE.WireframeGeometry(geom.parameters.geometry);
+  //oceanGridProjected.scale.set(1.5,1.5, 1.5);
 }
 
 
