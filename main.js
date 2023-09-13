@@ -15,10 +15,6 @@ const near = 0.1;
 const far = 2000;
 const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
 
-
-
-
-
 // CREATE RENDERER
 const renderer = new THREE.WebGLRenderer();
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -37,6 +33,26 @@ camera.position.set(5, 6, 5);
 controls.target.set(0, 0, 0);
 
 
+// SCENE PREVIEW SYSTEM
+// CREATE OUTSIDE CAMERA
+let sizePreview = 200;
+const cameraPreview = new THREE.PerspectiveCamera(fov, aspect, near, far);
+cameraPreview.position.set(-10, 6, -10);
+cameraPreview.lookAt(0, 0, 0);
+cameraPreview.aspect = 1;
+cameraPreview.updateProjectionMatrix();
+let rendererPreview = new THREE.WebGLRenderer();
+rendererPreview.outputEncoding = THREE.sRGBEncoding;
+rendererPreview.setSize( 200, 200);
+let canvasPreview = rendererPreview.domElement;
+canvasPreview.style.width = '300px';
+canvasPreview.style.height = '300px';
+canvasPreview.style.position = 'absolute';
+canvasPreview.style.bottom = '0';
+canvasPreview.style.right = '0';
+document.body.appendChild( canvasPreview );
+
+
 
 // OBJECTS
 // CUBE
@@ -44,6 +60,15 @@ let geometry = new THREE.BoxGeometry( 1, 1, 1 );
 let material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
 const cube = new THREE.Mesh( geometry, material );
 scene.add( cube );
+
+// CAMERA CONE
+let coneGeom = new THREE.ConeGeometry(0.5, 2);
+let coneMat = new THREE.MeshBasicMaterial( { color:  "rgb(255, 127, 127)"} );
+const cameraCone = new THREE.Mesh(coneGeom, coneMat);
+const coneObj = new THREE.Object3D();
+cameraCone.rotateX(Math.PI/2);
+coneObj.add(cameraCone);
+scene.add( coneObj );
 
 // GRID HELPER
 let size = 10;
@@ -60,10 +85,10 @@ let projectedPlaneGeom = new THREE.PlaneGeometry( size, size, divisions, divisio
 
 let oceanGrid = new THREE.LineSegments( new THREE.WireframeGeometry( planeGeometry));
 oceanGrid.material.depthTest = false;
-oceanGrid.material.opacity = 1.0;
+oceanGrid.material.opacity = 0.5;
 oceanGrid.material.transparent = true;
 oceanGrid.frustrumculled = false;
-
+// OCEAN GRID PROJECTED
 let oceanGridProjected = new THREE.LineSegments( new THREE.WireframeGeometry( projectedPlaneGeom));
 oceanGridProjected.material.depthTest = false;
 oceanGridProjected.material.opacity = 1.0;
@@ -191,10 +216,13 @@ function animate() {
 	cube.rotation.y += 0.01;
 
   updatePlane();
+  updateObjectMatrixAccordingToCamera(coneObj);
 
 	renderer.render( scene, camera );
 
   controls.update();
+
+  rendererPreview.render( scene, cameraPreview);
 }
 
 animate();
