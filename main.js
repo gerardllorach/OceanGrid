@@ -206,7 +206,7 @@ function updatePlane(inputCamera){
 let intersectPoint = new THREE.Vector3();
 let rowCentralVertex = new THREE.Vector3();
 function updateCameraGrid(){
-  
+
   // Check if central vertex of top row is inside frustrum
   let defaultVertices = planeGeometryDefault.attributes.position.array;
   // When cameraUser is below XZ plane, the central vertex of the last row should be taken
@@ -283,7 +283,14 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   let distanceCamToVertex = cameraUser.position.distanceTo(rowCentralVertex);
   let camGridPosition = tempVec3b.subVectors(intersectPoint, rowCentralVertex).normalize().multiplyScalar(distanceCamToVertex);
   camGridPosition.add(rowCentralVertex);
-  camGridPosition.y = camGridPosition.y + Math.sign(camGridPosition.y) * 0.1;
+  // TODO, NEEDS FIX, WARNING, HACK
+  // The cameraGrid needs to be a bit higher to avoid the rays to be behind the cameraUser (positions points behind the cameraUser).7
+  // This effect is not fixed by a constant, so the solution is to increase the +y according to the camera tilt? or should it be relative too
+  // to the camera tilt and the distance to the XZ plane?
+  let forward = cameraUser.getWorldDirection(tempVec3);
+  let horizontalTilt = tempVec3.angleTo(tempVec3a.set(forward.x, 0, forward.z)) * 180 / Math.PI;
+  let additionalY = Math.sign(cameraUser.position.y) * 5 * (1 - Math.min(1 , horizontalTilt/26));
+  camGridPosition.y = camGridPosition.y + Math.sign(camGridPosition.y) * 0.1 + additionalY;
   cameraGrid.position.copy(camGridPosition);
   cameraGrid.updateMatrix();
 
