@@ -15,15 +15,21 @@ const near = 0.1;
 const far = 2000;
 const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
 
+// CREATE CAMERA GRID
+const cameraGrid = new THREE.PerspectiveCamera(fov, aspect, near, far);
+
 // CREATE RENDERER
 const renderer = new THREE.WebGLRenderer();
 renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.setSize( window.innerWidth, window.innerHeight );
+renderer.setSize( window.innerWidth/2, window.innerHeight );
 
 // CREATE CANVAS
 const canvas = renderer.domElement;
-canvas.style.width = '100vw';
+canvas.style.width = '50vw';
 canvas.style.height = '100vh';
+canvas.style.position = 'absolute';
+canvas.style.top = '0';
+canvas.style.left = '0';
 document.body.appendChild( canvas );
 
 
@@ -35,20 +41,19 @@ controls.target.set(0, 0, 0);
 
 // SCENE PREVIEW SYSTEM
 // CREATE OUTSIDE CAMERA
-let sizePreview = 200;
 const cameraPreview = new THREE.PerspectiveCamera(fov, aspect, near, far);
-cameraPreview.position.set(-10, 6, -10);
+cameraPreview.position.set(-15, 12, -15);
 cameraPreview.lookAt(0, 0, 0);
 cameraPreview.aspect = 1;
 cameraPreview.updateProjectionMatrix();
 let rendererPreview = new THREE.WebGLRenderer();
 rendererPreview.outputEncoding = THREE.sRGBEncoding;
-rendererPreview.setSize( 200, 200);
+rendererPreview.setSize( window.innerWidth/2, window.innerHeight);
 let canvasPreview = rendererPreview.domElement;
-canvasPreview.style.width = '300px';
-canvasPreview.style.height = '300px';
+canvasPreview.style.width = '50vw';
+canvasPreview.style.height = '100vh';
 canvasPreview.style.position = 'absolute';
-canvasPreview.style.bottom = '0';
+canvasPreview.style.top = '0';
 canvasPreview.style.right = '0';
 document.body.appendChild( canvasPreview );
 
@@ -70,6 +75,17 @@ cameraCone.rotateX(Math.PI/2);
 coneObj.add(cameraCone);
 scene.add( coneObj );
 
+// CAMERA GRID CONE
+//let coneGeom2 = new THREE.ConeGeometry(0.5, 2);
+let coneGeom2 = new THREE.SphereGeometry(0.3);
+let coneMat2 = new THREE.MeshBasicMaterial( { color:  "rgb(127, 255, 127)"} );
+const cameraGridCone = new THREE.Mesh(coneGeom2, coneMat2);
+const coneGridObj = new THREE.Object3D();
+cameraGridCone.rotateX(Math.PI/2);
+coneGridObj.add(cameraGridCone);
+scene.add( coneGridObj );
+
+
 // GRID HELPER
 let size = 10;
 let divisions = 10;
@@ -85,13 +101,13 @@ let projectedPlaneGeom = new THREE.PlaneGeometry( size, size, divisions, divisio
 
 let oceanGrid = new THREE.LineSegments( new THREE.WireframeGeometry( planeGeometry));
 oceanGrid.material.depthTest = false;
-oceanGrid.material.opacity = 0.5;
+oceanGrid.material.opacity = 0.2;
 oceanGrid.material.transparent = true;
 oceanGrid.frustrumculled = false;
 // OCEAN GRID PROJECTED
 let oceanGridProjected = new THREE.LineSegments( new THREE.WireframeGeometry( projectedPlaneGeom));
 oceanGridProjected.material.depthTest = false;
-oceanGridProjected.material.opacity = 1.0;
+oceanGridProjected.material.opacity = 0.2;
 oceanGridProjected.material.transparent = true;
 oceanGridProjected.frustrumculled = false;
 
@@ -100,6 +116,21 @@ scene.add( oceanGridProjected );
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+let tempVec3 = new THREE.Vector3();
+let tempVec3a = new THREE.Vector3();
+let tempVec3b = new THREE.Vector3();
 let tempVec4 = new THREE.Vector4();
 let tempVec4a = new THREE.Vector4();
 let tempVec4b = new THREE.Vector4();
@@ -126,6 +157,8 @@ function updatePlane(){
     // Homogeneous division if needed
     if (tempVec4.w != 0)
       tempVec4.divideScalar(tempVec4.w);
+
+    topRowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
 
     // Calculate intersection with xz plane and camera ray
     let rayDirection = tempVec4a.subVectors(tempVec4, camera.position);
@@ -166,12 +199,109 @@ function updatePlane(){
 
 
 
+
+
+// Update the camera grid position and orientation
+let intersectPoint = new THREE.Vector3();
+let topRowCentralVertex = new THREE.Vector3();
+function updateCameraGrid(){
+  
+  // Check if central vertex of top row is inside frustrum
+  let defaultVertices = planeGeometryDefault.attributes.position.array;
+  tempVec4.set(0, defaultVertices[1], 0, 1); // Top row central vertex
+  
+  // Move vertices in front of the camera
+  camera.translateZ(-10);
+  camera.updateMatrix();
+  tempVec4 = tempVec4.applyMatrix4(camera.matrix, tempVec4);
+  camera.translateZ(10);
+  // Homogeneous division if needed
+  if (tempVec4.w != 0)
+    tempVec4.divideScalar(tempVec4.w);
+
+  topRowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
+
+  // Calculate intersection with xz plane and camera ray
+  let rayDirection = tempVec4a.subVectors(tempVec4, camera.position);
+
+  
+
+  // Ray is not parallel to the horizon
+  if (rayDirection.y !== 0){
+    let t = (0 - camera.position.y) / rayDirection.y;
+    // Intersection point
+    intersectPoint.copy(camera.position).add(rayDirection.multiplyScalar(t));
+    let magnitude = intersectPoint.length();
+    if (magnitude > camera.far){
+      // APPROXIMATING HORIZON, RECALCULATE CAMERA GRID MATRIX
+      calculateCameraGridMatrix(intersectPoint, topRowCentralVertex);
+    }
+    // If ray points behind the camera
+    let dirA = tempVec3.subVectors(topRowCentralVertex, camera.position);
+    let dirB = tempVec3a.subVectors(intersectPoint, camera.position);
+    let dotResult = dirA.dot(dirB);
+    if(dotResult < 0){
+      // Find intersection between frustrum and XZ plane
+      intersectPoint.copy(rayDirection).normalize().multiplyScalar(camera.far); // Extend ray to end of frustrum (camera.far)
+      intersectPoint.y = 0;
+      calculateCameraGridMatrix(intersectPoint, topRowCentralVertex);
+    } else {
+      updateObjectMatrixAccordingToCamera(cameraGrid);
+    }
+  } 
+  // LOOKING AT HORIZON, RECALCULATE CAMERA GRID MATRIX
+  else {
+    // Find intersection between frustrum and XZ plane
+    intersectPoint.copy(rayDirection).normalize().multiplyScalar(camera.far); // Extend ray to end of frustrum (camera.far)
+    intersectPoint.y = 0;
+    calculateCameraGridMatrix(intersectPoint, topRowCentralVertex);
+  }
+}
+
+
+// Camera grid must be moved
+function calculateCameraGridMatrix(intersectPoint, topRowCentralVertex){
+  if (intersectPoint.y > 0.0001)
+    console.log(intersectPoint);
+
+  // Find camera position using top row central vertex, intersection point and distance from camera to top row central vertex
+  let distanceCamToVertex = camera.position.distanceTo(topRowCentralVertex);
+  let camGridPosition = tempVec3b.subVectors(intersectPoint, topRowCentralVertex).normalize().multiplyScalar(distanceCamToVertex);
+  camGridPosition.add(topRowCentralVertex);
+  cameraGrid.position.copy(camGridPosition);
+  cameraGrid.updateMatrix();
+
+
+  
+  
+
+}
+
+
+
+
+
+
 // Make as if it was a child of camera
-function updateObjectMatrixAccordingToCamera(node){
-  node.position.copy( camera.position );
-  node.rotation.copy( camera.rotation );
+function updateObjectMatrixAccordingToCamera(node, inCam){
+  let cam = inCam || camera;
+  node.position.copy( cam.position );
+  node.rotation.copy( cam.rotation );
   node.updateMatrix();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -184,6 +314,7 @@ function resizeRendererToDisplaySize(renderer) {
   const needResize = canvas.width !== width || canvas.height !== height;
   if (needResize) {
     renderer.setSize(width, height, false);
+    rendererPreview.setSize(canvasPreview.clientWidth, canvasPreview.clientHeight, false);
   }
   return needResize;
 }
@@ -194,6 +325,9 @@ function windowWasResized(){
     const canvas = renderer.domElement;
     camera.aspect = canvas.clientWidth / canvas.clientHeight;
     camera.updateProjectionMatrix();
+    const canvasPreview = rendererPreview.domElement;
+    cameraPreview.aspect = canvasPreview.clientWidth / canvasPreview.clientHeight;
+    cameraPreview.updateProjectionMatrix();
   }
 }
 
@@ -201,6 +335,8 @@ window.addEventListener("resize", windowWasResized);
 window.addEventListener("load", ()=> {
   camera.aspect = canvas.clientWidth / canvas.clientHeight;
   camera.updateProjectionMatrix();
+  cameraPreview.aspect = canvasPreview.clientWidth / canvasPreview.clientHeight;
+  cameraPreview.updateProjectionMatrix();
   windowWasResized();
 });
 
@@ -215,8 +351,15 @@ function animate() {
 	cube.rotation.x += 0.01;
 	cube.rotation.y += 0.01;
 
+  // Update grid from camera
   updatePlane();
+  // Update camera grid
+  updateCameraGrid();
+  // Helpers
   updateObjectMatrixAccordingToCamera(coneObj);
+  updateObjectMatrixAccordingToCamera(coneGridObj, cameraGrid);
+  
+  
 
 	renderer.render( scene, camera );
 
