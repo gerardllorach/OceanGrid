@@ -95,7 +95,7 @@ scene.add( gridHelper );
 // OCEAN GRID
 size = 5;
 divisions = 10;
-let distanceFrontCamera = 10;
+let distanceFrontCamera = 5;
 let planeGeometry = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let planeGeometryDefault = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let projectedPlaneGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
@@ -241,10 +241,7 @@ function updateCameraGrid(){
     // Intersection point
     intersectPoint.copy(cameraUser.position).add(rayDirection.multiplyScalar(t));
     let magnitude = intersectPoint.length();
-    if (magnitude > cameraUser.far){
-      // APPROXIMATING HORIZON, RECALCULATE CAMERA GRID MATRIX
-      calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
-    }
+
     // If ray points behind the cameraUser
     let dirA = tempVec3.subVectors(rowCentralVertex, cameraUser.position);
     let dirB = tempVec3a.subVectors(intersectPoint, cameraUser.position);
@@ -254,7 +251,13 @@ function updateCameraGrid(){
       intersectPoint.copy(rayDirection).normalize().multiplyScalar(cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
       intersectPoint.y = 0;
       calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
-    } else {
+    } 
+    else if (magnitude > cameraUser.far){
+      // APPROXIMATING HORIZON, RECALCULATE CAMERA GRID MATRIX
+      calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
+    }
+    else {
+      // DEFAULT, NO MODIFICATION
       updateObjectMatrixAccordingToCamera(cameraGrid);
     }
   } 
@@ -280,6 +283,7 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   let distanceCamToVertex = cameraUser.position.distanceTo(rowCentralVertex);
   let camGridPosition = tempVec3b.subVectors(intersectPoint, rowCentralVertex).normalize().multiplyScalar(distanceCamToVertex);
   camGridPosition.add(rowCentralVertex);
+  camGridPosition.y = camGridPosition.y + Math.sign(camGridPosition.y) * 0.1;
   cameraGrid.position.copy(camGridPosition);
   cameraGrid.updateMatrix();
 
