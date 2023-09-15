@@ -13,7 +13,7 @@ const fov = 45;
 const aspect = 2;  // the canvas default
 const near = 0.1;
 const far = 2000;
-const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+const cameraUser = new THREE.PerspectiveCamera(fov, aspect, near, far);
 
 // CREATE CAMERA GRID
 const cameraGrid = new THREE.PerspectiveCamera(fov, aspect, near, far);
@@ -34,8 +34,8 @@ document.body.appendChild( canvas );
 
 
 // CAMERA CONTROLS
-const controls = new OrbitControls(camera, canvas);
-camera.position.set(5, 6, 5);
+const controls = new OrbitControls(cameraUser, canvas);
+cameraUser.position.set(5, 6, 5);
 controls.target.set(0, 0, 0);
 
 
@@ -95,6 +95,7 @@ scene.add( gridHelper );
 // OCEAN GRID
 size = 5;
 divisions = 10;
+let distanceFrontCamera = 10;
 let planeGeometry = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let planeGeometryDefault = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let projectedPlaneGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
@@ -137,7 +138,9 @@ let tempVec4b = new THREE.Vector4();
 function updatePlane(inputCamera){
   // Temporal, moves the vertices in front of camera using THREE operations
   //updateObjectMatrixAccordingToCamera(oceanGrid);
-  //oceanGrid.translateZ(-10);
+  //oceanGrid.translateZ(-distanceFrontCamera);
+
+  let camera = inputCamera || cameraUser;
 
   let defaultVertices = planeGeometryDefault.attributes.position.array;
   let vertices = planeGeometry.attributes.position.array;
@@ -150,10 +153,10 @@ function updatePlane(inputCamera){
     tempVec4.set(defaultVertices[i*3], defaultVertices[i*3 + 1], defaultVertices[i*3 + 2], 1);
     
     // Move vertices in front of the camera
-    camera.translateZ(-10);
+    camera.translateZ(-distanceFrontCamera);
     camera.updateMatrix();
     tempVec4 = tempVec4.applyMatrix4(camera.matrix, tempVec4);
-    camera.translateZ(10);
+    camera.translateZ(distanceFrontCamera);
     // Homogeneous division if needed
     if (tempVec4.w != 0)
       tempVec4.divideScalar(tempVec4.w);
@@ -206,9 +209,9 @@ function updateCameraGrid(){
   
   // Check if central vertex of top row is inside frustrum
   let defaultVertices = planeGeometryDefault.attributes.position.array;
-  // When camera is below XZ plane, the central vertex of the last row should be taken
-  // TODO: always consider a positive Y for the camera position --> it does not matter for the grid projection
-  if (camera.position.y >= 0)
+  // When cameraUser is below XZ plane, the central vertex of the last row should be taken
+  // TODO: always consider a positive Y for the cameraUser position --> it does not matter for the grid projection
+  if (cameraUser.position.y >= 0)
     tempVec4.set(0, defaultVertices[1], 0, 1); // Top row central vertex
   else{
     let lastVertexIndex = (defaultVertices.length/3 - 1);
@@ -216,39 +219,39 @@ function updateCameraGrid(){
   }
   
 
-  // Move vertices in front of the camera
-  camera.translateZ(-10);
-  camera.updateMatrix();
-  tempVec4 = tempVec4.applyMatrix4(camera.matrix, tempVec4);
-  camera.translateZ(10);
+  // Move vertices in front of the cameraUser
+  cameraUser.translateZ(-distanceFrontCamera);
+  cameraUser.updateMatrix();
+  tempVec4 = tempVec4.applyMatrix4(cameraUser.matrix, tempVec4);
+  cameraUser.translateZ(distanceFrontCamera);
   // Homogeneous division if needed
   if (tempVec4.w != 0)
     tempVec4.divideScalar(tempVec4.w);
 
   rowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
 
-  // Calculate intersection with xz plane and camera ray
-  let rayDirection = tempVec4a.subVectors(tempVec4, camera.position);
+  // Calculate intersection with xz plane and cameraUser ray
+  let rayDirection = tempVec4a.subVectors(tempVec4, cameraUser.position);
 
   
 
   // Ray is not parallel to the horizon
   if (rayDirection.y !== 0){
-    let t = (0 - camera.position.y) / rayDirection.y;
+    let t = (0 - cameraUser.position.y) / rayDirection.y;
     // Intersection point
-    intersectPoint.copy(camera.position).add(rayDirection.multiplyScalar(t));
+    intersectPoint.copy(cameraUser.position).add(rayDirection.multiplyScalar(t));
     let magnitude = intersectPoint.length();
-    if (magnitude > camera.far){
+    if (magnitude > cameraUser.far){
       // APPROXIMATING HORIZON, RECALCULATE CAMERA GRID MATRIX
       calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
     }
-    // If ray points behind the camera
-    let dirA = tempVec3.subVectors(rowCentralVertex, camera.position);
-    let dirB = tempVec3a.subVectors(intersectPoint, camera.position);
+    // If ray points behind the cameraUser
+    let dirA = tempVec3.subVectors(rowCentralVertex, cameraUser.position);
+    let dirB = tempVec3a.subVectors(intersectPoint, cameraUser.position);
     let dotResult = dirA.dot(dirB);
     if(dotResult < 0){
       // Find intersection between frustrum and XZ plane
-      intersectPoint.copy(rayDirection).normalize().multiplyScalar(camera.far); // Extend ray to end of frustrum (camera.far)
+      intersectPoint.copy(rayDirection).normalize().multiplyScalar(cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
       intersectPoint.y = 0;
       calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
     } else {
@@ -258,7 +261,7 @@ function updateCameraGrid(){
   // LOOKING AT HORIZON, RECALCULATE CAMERA GRID MATRIX
   else {
     // Find intersection between frustrum and XZ plane
-    intersectPoint.copy(rayDirection).normalize().multiplyScalar(camera.far); // Extend ray to end of frustrum (camera.far)
+    intersectPoint.copy(rayDirection).normalize().multiplyScalar(cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
     intersectPoint.y = 0;
     calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
   }
@@ -274,7 +277,7 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
     console.log(intersectPoint);
 
   // Find camera position using top row central vertex, intersection point and distance from camera to top row central vertex
-  let distanceCamToVertex = camera.position.distanceTo(rowCentralVertex);
+  let distanceCamToVertex = cameraUser.position.distanceTo(rowCentralVertex);
   let camGridPosition = tempVec3b.subVectors(intersectPoint, rowCentralVertex).normalize().multiplyScalar(distanceCamToVertex);
   camGridPosition.add(rowCentralVertex);
   cameraGrid.position.copy(camGridPosition);
@@ -285,7 +288,7 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   // TODO: Check if central vertex of opposite row is inside frustrum --> ocean must not be painted then!
   let defaultVertices = planeGeometryDefault.attributes.position.array;
   // TODO: always consider a positive Y for the camera position --> it does not matter for the grid projection
-  if (camera.position.y >= 0){
+  if (cameraUser.position.y >= 0){
     let lastVertexIndex = (defaultVertices.length/3 - 1);
     tempVec4.set(0, defaultVertices[lastVertexIndex*3 + 1], 0, 1); // Bottom row central vertex
  } else
@@ -293,37 +296,37 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   
 
   // Calcaulate intersection point
-  // Move vertex in front of the camera
-  camera.translateZ(-10);
-  camera.updateMatrix();
-  tempVec4 = tempVec4.applyMatrix4(camera.matrix, tempVec4);
-  camera.translateZ(10);
+  // Move vertex in front of the cameraUser
+  cameraUser.translateZ(-distanceFrontCamera);
+  cameraUser.updateMatrix();
+  tempVec4 = tempVec4.applyMatrix4(cameraUser.matrix, tempVec4);
+  cameraUser.translateZ(distanceFrontCamera);
   // Homogeneous division if needed
   if (tempVec4.w != 0)
     tempVec4.divideScalar(tempVec4.w);
 
   oppositeRowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
 
-  // Calculate intersection with xz plane and camera ray
-  let rayDirection = tempVec4a.subVectors(tempVec4, camera.position);
+  // Calculate intersection with xz plane and cameraUser ray
+  let rayDirection = tempVec4a.subVectors(tempVec4, cameraUser.position);
   // Ray is not parallel to the horizon
   if (rayDirection.y !== 0){
-    let t = (0 - camera.position.y) / rayDirection.y;
+    let t = (0 - cameraUser.position.y) / rayDirection.y;
     // Intersection point
-    secondIntersectPoint.copy(camera.position).add(rayDirection.multiplyScalar(t));
+    secondIntersectPoint.copy(cameraUser.position).add(rayDirection.multiplyScalar(t));
     let magnitude = secondIntersectPoint.length();
-    if (magnitude > camera.far){
+    if (magnitude > cameraUser.far){
       // APPROXIMATING HORIZON
       // TODO: DO NOT PAINT
-      console.log("Do not paint (camera looking towards horizon but too far).");
+      console.log("Do not paint (cameraUser looking towards horizon but too far).");
     }
-    // If ray points behind the camera
-    let dirA = tempVec3.subVectors(oppositeRowCentralVertex, camera.position);
-    let dirB = tempVec3a.subVectors(secondIntersectPoint, camera.position);
+    // If ray points behind the cameraUser
+    let dirA = tempVec3.subVectors(oppositeRowCentralVertex, cameraUser.position);
+    let dirB = tempVec3a.subVectors(secondIntersectPoint, cameraUser.position);
     let dotResult = dirA.dot(dirB);
     if(dotResult < 0){
       // TODO: DO NOT PAINT
-      console.log("Do not paint (camera looking upwards).");
+      console.log("Do not paint (cameraUser looking upwards).");
     } else {
       // CONTINUE SCRIPT
       camGridTarget.addVectors(rowCentralVertex, oppositeRowCentralVertex).multiplyScalar(0.5);
@@ -333,7 +336,7 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   // LOOKING AT HORIZON, DO NOT PAINT
   else {
     // TODO: DO NOT PAINT
-    console.log("Do not paint (bottom camera frustrum looking at horizon).")
+    console.log("Do not paint (bottom cameraUser frustrum looking at horizon).")
   }
 }
 
@@ -344,7 +347,7 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
 
 // Make as if it was a child of camera
 function updateObjectMatrixAccordingToCamera(node, inCam){
-  let cam = inCam || camera;
+  let cam = inCam || cameraUser;
   node.position.copy( cam.position );
   node.rotation.copy( cam.rotation );
   node.updateMatrix();
@@ -383,8 +386,8 @@ function resizeRendererToDisplaySize(renderer) {
 function windowWasResized(){
   if (resizeRendererToDisplaySize(renderer)) {
     const canvas = renderer.domElement;
-    camera.aspect = canvas.clientWidth / canvas.clientHeight;
-    camera.updateProjectionMatrix();
+    cameraUser.aspect = canvas.clientWidth / canvas.clientHeight;
+    cameraUser.updateProjectionMatrix();
     const canvasPreview = rendererPreview.domElement;
     cameraPreview.aspect = canvasPreview.clientWidth / canvasPreview.clientHeight;
     cameraPreview.updateProjectionMatrix();
@@ -393,8 +396,8 @@ function windowWasResized(){
 
 window.addEventListener("resize", windowWasResized);
 window.addEventListener("load", ()=> {
-  camera.aspect = canvas.clientWidth / canvas.clientHeight;
-  camera.updateProjectionMatrix();
+  cameraUser.aspect = canvas.clientWidth / canvas.clientHeight;
+  cameraUser.updateProjectionMatrix();
   cameraPreview.aspect = canvasPreview.clientWidth / canvasPreview.clientHeight;
   cameraPreview.updateProjectionMatrix();
   windowWasResized();
@@ -422,7 +425,7 @@ function animate() {
   
   
 
-	renderer.render( scene, camera );
+	renderer.render( scene, cameraUser );
 
   controls.update();
 
