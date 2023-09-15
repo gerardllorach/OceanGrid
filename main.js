@@ -254,6 +254,9 @@ function updateCameraGrid(){
     } 
     else if (magnitude > cameraUser.far){
       // APPROXIMATING HORIZON, RECALCULATE CAMERA GRID MATRIX
+      // HACK, for some reason, when camera is below horizon (negative y), the intersection point is on the opposite position
+      if (cameraUser.position.y < 0)
+        intersectPoint.multiplyScalar(-1);
       calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
     }
     else {
