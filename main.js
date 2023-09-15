@@ -158,8 +158,6 @@ function updatePlane(){
     if (tempVec4.w != 0)
       tempVec4.divideScalar(tempVec4.w);
 
-    topRowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
-
     // Calculate intersection with xz plane and camera ray
     let rayDirection = tempVec4a.subVectors(tempVec4, camera.position);
     // Ray is not parallel to the horizon
@@ -203,13 +201,20 @@ function updatePlane(){
 
 // Update the camera grid position and orientation
 let intersectPoint = new THREE.Vector3();
-let topRowCentralVertex = new THREE.Vector3();
+let rowCentralVertex = new THREE.Vector3();
 function updateCameraGrid(){
   
   // Check if central vertex of top row is inside frustrum
   let defaultVertices = planeGeometryDefault.attributes.position.array;
-  tempVec4.set(0, defaultVertices[1], 0, 1); // Top row central vertex
+  // When camera is below XZ plane, the last vertex should be taken
+  if (camera.position.y >= 0)
+    tempVec4.set(0, defaultVertices[1], 0, 1); // Top row central vertex
+  else{
+    let lastVertexIndex = (defaultVertices.length/3 - 1);
+    tempVec4.set(0, defaultVertices[lastVertexIndex*3 + 1], 0, 1); // Bottom row central vertex
+  }
   
+
   // Move vertices in front of the camera
   camera.translateZ(-10);
   camera.updateMatrix();
@@ -219,7 +224,7 @@ function updateCameraGrid(){
   if (tempVec4.w != 0)
     tempVec4.divideScalar(tempVec4.w);
 
-  topRowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
+  rowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
 
   // Calculate intersection with xz plane and camera ray
   let rayDirection = tempVec4a.subVectors(tempVec4, camera.position);
@@ -234,17 +239,17 @@ function updateCameraGrid(){
     let magnitude = intersectPoint.length();
     if (magnitude > camera.far){
       // APPROXIMATING HORIZON, RECALCULATE CAMERA GRID MATRIX
-      calculateCameraGridMatrix(intersectPoint, topRowCentralVertex);
+      calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
     }
     // If ray points behind the camera
-    let dirA = tempVec3.subVectors(topRowCentralVertex, camera.position);
+    let dirA = tempVec3.subVectors(rowCentralVertex, camera.position);
     let dirB = tempVec3a.subVectors(intersectPoint, camera.position);
     let dotResult = dirA.dot(dirB);
     if(dotResult < 0){
       // Find intersection between frustrum and XZ plane
       intersectPoint.copy(rayDirection).normalize().multiplyScalar(camera.far); // Extend ray to end of frustrum (camera.far)
       intersectPoint.y = 0;
-      calculateCameraGridMatrix(intersectPoint, topRowCentralVertex);
+      calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
     } else {
       updateObjectMatrixAccordingToCamera(cameraGrid);
     }
@@ -254,20 +259,20 @@ function updateCameraGrid(){
     // Find intersection between frustrum and XZ plane
     intersectPoint.copy(rayDirection).normalize().multiplyScalar(camera.far); // Extend ray to end of frustrum (camera.far)
     intersectPoint.y = 0;
-    calculateCameraGridMatrix(intersectPoint, topRowCentralVertex);
+    calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
   }
 }
 
 
 // Camera grid must be moved
-function calculateCameraGridMatrix(intersectPoint, topRowCentralVertex){
+function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   if (intersectPoint.y > 0.0001)
     console.log(intersectPoint);
 
   // Find camera position using top row central vertex, intersection point and distance from camera to top row central vertex
-  let distanceCamToVertex = camera.position.distanceTo(topRowCentralVertex);
-  let camGridPosition = tempVec3b.subVectors(intersectPoint, topRowCentralVertex).normalize().multiplyScalar(distanceCamToVertex);
-  camGridPosition.add(topRowCentralVertex);
+  let distanceCamToVertex = camera.position.distanceTo(rowCentralVertex);
+  let camGridPosition = tempVec3b.subVectors(intersectPoint, rowCentralVertex).normalize().multiplyScalar(distanceCamToVertex);
+  camGridPosition.add(rowCentralVertex);
   cameraGrid.position.copy(camGridPosition);
   cameraGrid.updateMatrix();
 
