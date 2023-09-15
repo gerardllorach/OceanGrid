@@ -56,6 +56,8 @@ canvasPreview.style.position = 'absolute';
 canvasPreview.style.top = '0';
 canvasPreview.style.right = '0';
 document.body.appendChild( canvasPreview );
+const controlsPreview = new OrbitControls(cameraPreview, canvasPreview);
+controlsPreview.target.set(0, 0, 0);
 
 
 
@@ -94,7 +96,7 @@ scene.add( gridHelper );
 
 // OCEAN GRID
 size = 5;
-divisions = 10;
+divisions = 50;
 let distanceFrontCamera = 5;
 let planeGeometry = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let planeGeometryDefault = new THREE.PlaneGeometry( size, size, divisions, divisions );
@@ -254,9 +256,8 @@ function updateCameraGrid(){
     } 
     else if (magnitude > cameraUser.far){
       // APPROXIMATING HORIZON, RECALCULATE CAMERA GRID MATRIX
-      // HACK, for some reason, when camera is below horizon (negative y), the intersection point is on the opposite position
-      if (cameraUser.position.y < 0)
-        intersectPoint.multiplyScalar(-1);
+      // HACK, for some reason, the intersection point is on the opposite position
+      intersectPoint.multiplyScalar(-1);
       calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
     }
     else {
@@ -438,10 +439,14 @@ function animate() {
   updateObjectMatrixAccordingToCamera(coneGridObj, cameraGrid);
   
   
-
+  // Render main scene
+  // Hide frontal grid
+  oceanGrid.visible = false;
 	renderer.render( scene, cameraUser );
+  oceanGrid.visible = true;
 
   controls.update();
+  controlsPreview.update();
 
   rendererPreview.render( scene, cameraPreview);
 }
