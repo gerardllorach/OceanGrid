@@ -76,8 +76,8 @@ coneObj.add(cameraCone);
 scene.add( coneObj );
 
 // CAMERA GRID CONE
-//let coneGeom2 = new THREE.ConeGeometry(0.5, 2);
-let coneGeom2 = new THREE.SphereGeometry(0.3);
+let coneGeom2 = new THREE.ConeGeometry(0.5, 1);
+//let coneGeom2 = new THREE.SphereGeometry(0.3);
 let coneMat2 = new THREE.MeshBasicMaterial( { color:  "rgb(127, 255, 127)"} );
 const cameraGridCone = new THREE.Mesh(coneGeom2, coneMat2);
 const coneGridObj = new THREE.Object3D();
@@ -134,7 +134,7 @@ let tempVec3b = new THREE.Vector3();
 let tempVec4 = new THREE.Vector4();
 let tempVec4a = new THREE.Vector4();
 let tempVec4b = new THREE.Vector4();
-function updatePlane(){
+function updatePlane(inputCamera){
   // Temporal, moves the vertices in front of camera using THREE operations
   //updateObjectMatrixAccordingToCamera(oceanGrid);
   //oceanGrid.translateZ(-10);
@@ -206,7 +206,8 @@ function updateCameraGrid(){
   
   // Check if central vertex of top row is inside frustrum
   let defaultVertices = planeGeometryDefault.attributes.position.array;
-  // When camera is below XZ plane, the last vertex should be taken
+  // When camera is below XZ plane, the central vertex of the last row should be taken
+  // TODO: always consider a positive Y for the camera position --> it does not matter for the grid projection
   if (camera.position.y >= 0)
     tempVec4.set(0, defaultVertices[1], 0, 1); // Top row central vertex
   else{
@@ -264,6 +265,9 @@ function updateCameraGrid(){
 }
 
 
+let oppositeRowCentralVertex = new THREE.Vector3();
+let secondIntersectPoint = new THREE.Vector3();
+let camGridTarget = new THREE.Vector3();
 // Camera grid must be moved
 function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   if (intersectPoint.y > 0.0001)
@@ -276,10 +280,61 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   cameraGrid.position.copy(camGridPosition);
   cameraGrid.updateMatrix();
 
-
+  // Find camera direction (forward, target) using the intersection between the opposite row central vertex, which calculates a second
+  // intersection point. The camera direction (target) is found by calculating the point between the two intersection points.
+  // TODO: Check if central vertex of opposite row is inside frustrum --> ocean must not be painted then!
+  let defaultVertices = planeGeometryDefault.attributes.position.array;
+  // TODO: always consider a positive Y for the camera position --> it does not matter for the grid projection
+  if (camera.position.y >= 0){
+    let lastVertexIndex = (defaultVertices.length/3 - 1);
+    tempVec4.set(0, defaultVertices[lastVertexIndex*3 + 1], 0, 1); // Bottom row central vertex
+ } else
+    tempVec4.set(0, defaultVertices[1], 0, 1); // Top row central vertex
   
-  
 
+  // Calcaulate intersection point
+  // Move vertex in front of the camera
+  camera.translateZ(-10);
+  camera.updateMatrix();
+  tempVec4 = tempVec4.applyMatrix4(camera.matrix, tempVec4);
+  camera.translateZ(10);
+  // Homogeneous division if needed
+  if (tempVec4.w != 0)
+    tempVec4.divideScalar(tempVec4.w);
+
+  oppositeRowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
+
+  // Calculate intersection with xz plane and camera ray
+  let rayDirection = tempVec4a.subVectors(tempVec4, camera.position);
+  // Ray is not parallel to the horizon
+  if (rayDirection.y !== 0){
+    let t = (0 - camera.position.y) / rayDirection.y;
+    // Intersection point
+    secondIntersectPoint.copy(camera.position).add(rayDirection.multiplyScalar(t));
+    let magnitude = secondIntersectPoint.length();
+    if (magnitude > camera.far){
+      // APPROXIMATING HORIZON
+      // TODO: DO NOT PAINT
+      console.log("Do not paint (camera looking towards horizon but too far).");
+    }
+    // If ray points behind the camera
+    let dirA = tempVec3.subVectors(oppositeRowCentralVertex, camera.position);
+    let dirB = tempVec3a.subVectors(secondIntersectPoint, camera.position);
+    let dotResult = dirA.dot(dirB);
+    if(dotResult < 0){
+      // TODO: DO NOT PAINT
+      console.log("Do not paint (camera looking upwards).");
+    } else {
+      // CONTINUE SCRIPT
+      camGridTarget.addVectors(rowCentralVertex, oppositeRowCentralVertex).multiplyScalar(0.5);
+      cameraGrid.lookAt(camGridTarget);
+    }
+  } 
+  // LOOKING AT HORIZON, DO NOT PAINT
+  else {
+    // TODO: DO NOT PAINT
+    console.log("Do not paint (bottom camera frustrum looking at horizon).")
+  }
 }
 
 
@@ -356,10 +411,11 @@ function animate() {
 	cube.rotation.x += 0.01;
 	cube.rotation.y += 0.01;
 
-  // Update grid from camera
-  updatePlane();
   // Update camera grid
   updateCameraGrid();
+  // Update grid from camera
+  updatePlane(cameraGrid);
+  
   // Helpers
   updateObjectMatrixAccordingToCamera(coneObj);
   updateObjectMatrixAccordingToCamera(coneGridObj, cameraGrid);
