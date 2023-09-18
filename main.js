@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'https://threejs.org/examples/jsm/controls/OrbitControls.js';
 
+import {myVertShader, myFragShader} from '/OceanGrid/shader.js';
+
 
 // Debuggin global variables
 window.THREE = THREE;
@@ -119,6 +121,7 @@ let yHeightScale = 1; // Parameter that depends on camera orientation and aspect
 let planeGeometry = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let planeGeometryDefault = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let projectedPlaneGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
+let staticPlaneGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
 
 let oceanGrid = new THREE.LineSegments( new THREE.WireframeGeometry( planeGeometry));
 oceanGrid.material.depthTest = false;
@@ -132,8 +135,21 @@ oceanGridProjected.material.opacity = 1.0;
 oceanGridProjected.material.transparent = true;
 oceanGridProjected.frustrumculled = false;
 
+// OCEAN GRID GPU-PROJECTED
+let gpuGridMat = new THREE.ShaderMaterial({
+  blending: THREE.NormalBlending,
+  transparent: true,
+  vertexShader: myVertShader,
+  fragmentShader: myFragShader,
+  uniforms: {
+    u_time: { value: new Date().getTime()}
+  }
+});
+let gpuGrid = new THREE.Mesh(staticPlaneGeom, gpuGridMat);
+
 scene.add( oceanGrid );
 scene.add( oceanGridProjected );
+scene.add( gpuGrid);
 
 
 
