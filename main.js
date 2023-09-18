@@ -35,14 +35,14 @@ document.body.appendChild( canvas );
 
 // CAMERA CONTROLS
 const controls = new OrbitControls(cameraUser, canvas);
-cameraUser.position.set(5, 6, 5);
+cameraUser.position.set(10, 5, 0);
 controls.target.set(0, 0, 0);
 
 
 // SCENE PREVIEW SYSTEM
 // CREATE OUTSIDE CAMERA
 const cameraPreview = new THREE.PerspectiveCamera(fov, aspect, near, far);
-cameraPreview.position.set(-15, 12, -15);
+cameraPreview.position.set(0, 10, 30);
 cameraPreview.lookAt(0, 0, 0);
 cameraPreview.aspect = 1;
 cameraPreview.updateProjectionMatrix();
@@ -59,9 +59,13 @@ document.body.appendChild( canvasPreview );
 const controlsPreview = new OrbitControls(cameraPreview, canvasPreview);
 controlsPreview.target.set(0, 0, 0);
 
+// CAMERA HELPER
+const helper = new THREE.CameraHelper( cameraUser );
+scene.add( helper );
 
 
-// OBJECTS
+
+// OBJECTS (HELPERS)
 // CUBE
 let geometry = new THREE.BoxGeometry( 1, 1, 1 );
 let material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
@@ -79,7 +83,6 @@ scene.add( coneObj );
 
 // CAMERA GRID CONE
 let coneGeom2 = new THREE.ConeGeometry(0.5, 1);
-//let coneGeom2 = new THREE.SphereGeometry(0.3);
 let coneMat2 = new THREE.MeshBasicMaterial( { color:  "rgb(127, 255, 127)"} );
 const cameraGridCone = new THREE.Mesh(coneGeom2, coneMat2);
 const coneGridObj = new THREE.Object3D();
@@ -87,17 +90,32 @@ cameraGridCone.rotateX(Math.PI/2);
 coneGridObj.add(cameraGridCone);
 scene.add( coneGridObj );
 
+let sphGeo = new THREE.SphereGeometry(0.3);
+let sphMat = new THREE.MeshBasicMaterial({color: "rgb(0, 0, 255)"});
+let sphMat2 = new THREE.MeshBasicMaterial({color: "rgb(255, 0, 0)"});
+const sph1 = new THREE.Mesh(sphGeo, sphMat);
+const sph2 = new THREE.Mesh(sphGeo, sphMat2);
+scene.add(sph1);
+scene.add(sph2);
+
 
 // GRID HELPER
-let size = 10;
-let divisions = 10;
+let size = 2000;
+let divisions = 100;
 const gridHelper = new THREE.GridHelper( size, divisions );
 scene.add( gridHelper );
+
+
+
+
+
+
 
 // OCEAN GRID
 size = 5;
 divisions = 50;
 let distanceFrontCamera = 5;
+let yHeightScale = 1; // Parameter that depends on camera orientation and aspect
 let planeGeometry = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let planeGeometryDefault = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let projectedPlaneGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
@@ -110,7 +128,7 @@ oceanGrid.frustrumculled = false;
 // OCEAN GRID PROJECTED
 let oceanGridProjected = new THREE.LineSegments( new THREE.WireframeGeometry( projectedPlaneGeom));
 oceanGridProjected.material.depthTest = false;
-oceanGridProjected.material.opacity = 0.2;
+oceanGridProjected.material.opacity = 1.0;
 oceanGridProjected.material.transparent = true;
 oceanGridProjected.frustrumculled = false;
 
@@ -137,6 +155,8 @@ let tempVec3b = new THREE.Vector3();
 let tempVec4 = new THREE.Vector4();
 let tempVec4a = new THREE.Vector4();
 let tempVec4b = new THREE.Vector4();
+let cameraUserForward = new THREE.Vector3();
+let rayDirection = new THREE.Vector3();
 function updatePlane(inputCamera){
   // Temporal, moves the vertices in front of camera using THREE operations
   //updateObjectMatrixAccordingToCamera(oceanGrid);
@@ -153,6 +173,8 @@ function updatePlane(inputCamera){
   for (let i = 0; i < numVertices; i++){
     // Use temp vector
     tempVec4.set(defaultVertices[i*3], defaultVertices[i*3 + 1], defaultVertices[i*3 + 2], 1);
+    // Scale plane height according to camera orientation and aspect
+    tempVec4.y = tempVec4.y * yHeightScale;
     
     // Move vertices in front of the camera
     camera.translateZ(-distanceFrontCamera);
@@ -164,13 +186,22 @@ function updatePlane(inputCamera){
       tempVec4.divideScalar(tempVec4.w);
 
     // Calculate intersection with xz plane and camera ray
-    let rayDirection = tempVec4a.subVectors(tempVec4, camera.position);
+    rayDirection.set(tempVec4.x, tempVec4.y, tempVec4.z);
+    rayDirection.subVectors(rayDirection, camera.position);
     // Ray is not parallel to the horizon
     if (rayDirection.y !== 0){
       let t = (0 - camera.position.y) / rayDirection.y;
       // Intersection point
-      tempVec4b = tempVec4b.copy(camera.position).add(rayDirection.multiplyScalar(t));
+      tempVec3 = tempVec3.copy(camera.position).add(rayDirection.multiplyScalar(t));
     }
+
+    // TODO: if cameraForward is opposite from ray direction, flip ray direction?
+    cameraUser.getWorldDirection(cameraUserForward);
+    let dotResult = cameraUserForward.dot(rayDirection);
+    if (dotResult < 0){
+      tempVec3.multiplyScalar(-1);
+    }
+
 
 
     // Reassign position to vertex
@@ -182,9 +213,9 @@ function updatePlane(inputCamera){
     vertices[i*3 + 1] = tempVec4.y; 
     vertices[i*3 + 2] = tempVec4.z;
     // On the XZ plane
-    projectedVertices[i*3] = tempVec4b.x;
-    projectedVertices[i*3 + 1] = tempVec4b.y; 
-    projectedVertices[i*3 + 2] = tempVec4b.z;
+    projectedVertices[i*3] = tempVec3.x;
+    projectedVertices[i*3 + 1] = tempVec3.y; 
+    projectedVertices[i*3 + 2] = tempVec3.z;
 
   }
   // Reset matrx
@@ -288,13 +319,14 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   let camGridPosition = tempVec3b.subVectors(intersectPoint, rowCentralVertex).normalize().multiplyScalar(distanceCamToVertex);
   camGridPosition.add(rowCentralVertex);
   // TODO, NEEDS FIX, WARNING, HACK
-  // The cameraGrid needs to be a bit higher to avoid the rays to be behind the cameraUser (positions points behind the cameraUser).7
+  // The cameraGrid needs to be a bit higher to avoid the rays to be behind the cameraUser (positions points behind the cameraUser).
   // This effect is not fixed by a constant, so the solution is to increase the +y according to the camera tilt? or should it be relative too
   // to the camera tilt and the distance to the XZ plane?
-  let forward = cameraUser.getWorldDirection(tempVec3);
-  let horizontalTilt = tempVec3.angleTo(tempVec3a.set(forward.x, 0, forward.z)) * 180 / Math.PI;
-  let additionalY = Math.sign(cameraUser.position.y) * 5 * (1 - Math.min(1 , horizontalTilt/26));
-  camGridPosition.y = camGridPosition.y + Math.sign(camGridPosition.y) * 0.1 + additionalY;
+  //let forward = cameraUser.getWorldDirection(tempVec3);
+  //let horizontalTilt = tempVec3.angleTo(tempVec3a.set(forward.x, 0, forward.z)) * 180 / Math.PI;
+  // WHEN LOOKAT CAMERAUSER CENTER GRID 
+  //let additionalY = Math.sign(camGridPosition.y) * 0.1   +    Math.sign(cameraUser.position.y) * 5 * (1 - Math.min(1 , horizontalTilt/26)); 
+  //camGridPosition.y = camGridPosition.y + additionalY;
   cameraGrid.position.copy(camGridPosition);
   cameraGrid.updateMatrix();
 
@@ -344,7 +376,21 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
       console.log("Do not paint (cameraUser looking upwards).");
     } else {
       // CONTINUE SCRIPT
-      camGridTarget.addVectors(rowCentralVertex, oppositeRowCentralVertex).multiplyScalar(0.5);
+      // CALCULATE CAMERA LOOKAT AND oceanGrid HEIGHT (RANGE)
+      //camGridTarget.addVectors(rowCentralVertex, oppositeRowCentralVertex).multiplyScalar(0.5); // LOOKAT CAMERAUSER CENTER GRID Somewhat satisfactory, but artifacts are present (when moving cameraUser up)
+      //camGridTarget.addVectors(intersectPoint, secondIntersectPoint).multiplyScalar(0.5);
+      // HACK: for some reason intersect point is in the opposite position in the XZ plane
+      intersectPoint.multiplyScalar(-1);
+      // Extend intersect point to horizon
+      intersectPoint.normalize().multiplyScalar(cameraUser.far);
+      // Calculate top and bottom central vertices of ocean grid
+      let gridTopCentralVertex = tempVec3.subVectors(intersectPoint, cameraGrid.position).normalize().multiplyScalar(distanceFrontCamera).add(cameraGrid.position);
+      let gridBottomCentralVertex = tempVec3a.subVectors(secondIntersectPoint, cameraGrid.position).normalize().multiplyScalar(distanceFrontCamera).add(cameraGrid.position);
+      //sph1.position.copy(gridTopCentralVertex);
+      // sph2.position.copy(gridBottomCentralVertex);
+      let yRange = gridBottomCentralVertex.distanceTo(gridTopCentralVertex);
+      yHeightScale = yRange / 4.5;
+      camGridTarget.addVectors(gridTopCentralVertex, gridBottomCentralVertex).multiplyScalar(0.5);
       cameraGrid.lookAt(camGridTarget);
     }
   } 
@@ -442,8 +488,10 @@ function animate() {
   // Render main scene
   // Hide frontal grid
   oceanGrid.visible = false;
+  cameraGridCone.visible = false;
 	renderer.render( scene, cameraUser );
   oceanGrid.visible = true;
+  cameraGridCone.visible = true;
 
   controls.update();
   controlsPreview.update();
