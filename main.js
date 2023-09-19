@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'https://threejs.org/examples/jsm/controls/OrbitControls.js';
 
+import {myVertShader, myFragShader} from '/OceanGrid/shader.js';
+
 
 // Debuggin global variables
 window.THREE = THREE;
@@ -41,7 +43,7 @@ controls.target.set(0, 0, 0);
 
 // SCENE PREVIEW SYSTEM
 // CREATE OUTSIDE CAMERA
-const cameraPreview = new THREE.PerspectiveCamera(fov, aspect, near, far);
+const cameraPreview = new THREE.PerspectiveCamera(fov, aspect, near, far*2);
 cameraPreview.position.set(0, 10, 30);
 cameraPreview.lookAt(0, 0, 0);
 cameraPreview.aspect = 1;
@@ -132,8 +134,28 @@ oceanGridProjected.material.opacity = 1.0;
 oceanGridProjected.material.transparent = true;
 oceanGridProjected.frustrumculled = false;
 
+// OCEAN GRID GPU-PROJECTED
+divisions = 100;
+let gpuGridGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
+let gpuGridMat = new THREE.ShaderMaterial({
+  blending: THREE.NormalBlending,
+  transparent: true,
+  vertexShader: myVertShader,
+  fragmentShader: myFragShader,
+  uniforms: {
+    u_time: { value: new Date().getTime()},
+    u_cameraModelMatrix: {value: cameraGrid.matrix},
+    u_cameraGridPosition: {value: cameraGrid.position},
+    u_cameraViewportScale: {value: new THREE.Vector2(1, 1)},
+  }
+});
+gpuGridMat.side = THREE.DoubleSide;
+let gpuGrid = new THREE.Mesh(gpuGridGeom, gpuGridMat);
+gpuGrid.frustrumculled = false;
+
 scene.add( oceanGrid );
 scene.add( oceanGridProjected );
+scene.add( gpuGrid);
 
 
 
@@ -181,6 +203,7 @@ function updatePlane(inputCamera){
     camera.updateMatrix();
     tempVec4 = tempVec4.applyMatrix4(camera.matrix, tempVec4);
     camera.translateZ(distanceFrontCamera);
+    camera.updateMatrix();
     // Homogeneous division if needed
     if (tempVec4.w != 0)
       tempVec4.divideScalar(tempVec4.w);
@@ -257,6 +280,7 @@ function updateCameraGrid(){
   cameraUser.updateMatrix();
   tempVec4 = tempVec4.applyMatrix4(cameraUser.matrix, tempVec4);
   cameraUser.translateZ(distanceFrontCamera);
+  cameraUser.updateMatrix();
   // Homogeneous division if needed
   if (tempVec4.w != 0)
     tempVec4.divideScalar(tempVec4.w);
@@ -301,6 +325,8 @@ function updateCameraGrid(){
     // Find intersection between frustrum and XZ plane
     intersectPoint.copy(rayDirection).normalize().multiplyScalar(cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
     intersectPoint.y = 0;
+    // HACK: COUNTER THE OTHER HACK IN LINE ~400
+    intersectPoint.multiplyScalar(-1);
     calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
   }
 }
@@ -318,15 +344,7 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   let distanceCamToVertex = cameraUser.position.distanceTo(rowCentralVertex);
   let camGridPosition = tempVec3b.subVectors(intersectPoint, rowCentralVertex).normalize().multiplyScalar(distanceCamToVertex);
   camGridPosition.add(rowCentralVertex);
-  // TODO, NEEDS FIX, WARNING, HACK
-  // The cameraGrid needs to be a bit higher to avoid the rays to be behind the cameraUser (positions points behind the cameraUser).
-  // This effect is not fixed by a constant, so the solution is to increase the +y according to the camera tilt? or should it be relative too
-  // to the camera tilt and the distance to the XZ plane?
-  //let forward = cameraUser.getWorldDirection(tempVec3);
-  //let horizontalTilt = tempVec3.angleTo(tempVec3a.set(forward.x, 0, forward.z)) * 180 / Math.PI;
-  // WHEN LOOKAT CAMERAUSER CENTER GRID 
-  //let additionalY = Math.sign(camGridPosition.y) * 0.1   +    Math.sign(cameraUser.position.y) * 5 * (1 - Math.min(1 , horizontalTilt/26)); 
-  //camGridPosition.y = camGridPosition.y + additionalY;
+  
   cameraGrid.position.copy(camGridPosition);
   cameraGrid.updateMatrix();
 
@@ -334,7 +352,6 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   // intersection point. The camera direction (target) is found by calculating the point between the two intersection points.
   // TODO: Check if central vertex of opposite row is inside frustrum --> ocean must not be painted then!
   let defaultVertices = planeGeometryDefault.attributes.position.array;
-  // TODO: always consider a positive Y for the camera position --> it does not matter for the grid projection
   if (cameraUser.position.y >= 0){
     let lastVertexIndex = (defaultVertices.length/3 - 1);
     tempVec4.set(0, defaultVertices[lastVertexIndex*3 + 1], 0, 1); // Bottom row central vertex
@@ -392,6 +409,7 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
       yHeightScale = yRange / 4.5;
       camGridTarget.addVectors(gridTopCentralVertex, gridBottomCentralVertex).multiplyScalar(0.5);
       cameraGrid.lookAt(camGridTarget);
+      cameraGrid.updateMatrix();
     }
   } 
   // LOOKING AT HORIZON, DO NOT PAINT
@@ -399,6 +417,7 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
     // TODO: DO NOT PAINT
     console.log("Do not paint (bottom cameraUser frustrum looking at horizon).")
   }
+  
 }
 
 
@@ -424,6 +443,22 @@ function updateObjectMatrixAccordingToCamera(node, inCam){
 
 
 
+// Update uniforms
+function updateUniforms(){
+  cameraGrid.updateMatrix();
+  gpuGrid.material.uniforms.u_cameraModelMatrix.value = cameraGrid.matrix;
+  gpuGrid.material.uniforms.u_cameraModelMatrix.uniformsNeedUpdate = true;
+  
+  gpuGrid.material.uniforms.u_cameraGridPosition.value = cameraGrid.position;
+  gpuGrid.material.uniforms.u_cameraGridPosition.uniformsNeedUpdate = true;
+
+  gpuGrid.material.uniforms.u_cameraViewportScale.value.y = yHeightScale;
+  gpuGrid.material.uniforms.u_cameraViewportScale.uniformsNeedUpdate = true;
+
+  
+  
+
+}
 
 
 
@@ -479,10 +514,18 @@ function animate() {
   updateCameraGrid();
   // Update grid from camera
   updatePlane(cameraGrid);
+
+  // Update grid gpu
+  updateObjectMatrixAccordingToCamera(gpuGrid, cameraGrid);
+  gpuGrid.translateZ(-distanceFrontCamera);
+  gpuGrid.updateMatrix();
   
   // Helpers
   updateObjectMatrixAccordingToCamera(coneObj);
   updateObjectMatrixAccordingToCamera(coneGridObj, cameraGrid);
+
+  // Update uniforms for grid gpu
+  updateUniforms();
   
   
   // Render main scene
