@@ -35,22 +35,14 @@ void main() {
     // Scale the vertices to fall inside the viewport
     vec3 scaledPosition = position;
     scaledPosition.x = position.x * u_cameraViewportScale.x;
-    scaledPosition.y = position.y * u_cameraViewportScale.y * 1.0;
+    scaledPosition.y = position.y * u_cameraViewportScale.y;
 
-    // Move vertex according to camera model matrix
-    vec4 posCamMatrix = u_cameraModelMatrix * vec4(scaledPosition, 1.0);
-    if (posCamMatrix.w != 0.0) // Homogeneous division if needed
-        posCamMatrix = posCamMatrix / posCamMatrix.w;
-    // Extract forward vector from camera
-    mat3 orientationMatrix = mat3(u_cameraModelMatrix);
-    vec3 forwardCameraVector = -orientationMatrix[2];
-    // Move vertices forward
-    vec3 posFrontCamera = vec3(posCamMatrix) + normalize(forwardCameraVector) * distanceFromCamera;
-
+    // Move vertices in front of the camera
+    vec3 worldPosition = vec3(modelMatrix * vec4(scaledPosition, 1.0));
 
     // Project vertex in the XZ plane
     // Calculate intersection between plane and camera ray
-    vec3 ray = normalize(posFrontCamera - u_cameraGridPosition);
+    vec3 ray = normalize(worldPosition - u_cameraGridPosition);
     // Ray is not parallel to the horizon
     float t = -1.0;
     if (ray.y != 0.0)
@@ -61,15 +53,20 @@ void main() {
 
     // HACK -> if cameraForward is opposite from ray direction, move intersection point on the opposite side
     // TODO: this method assumes that the camera is close to the center 0,0,0
-    vec3 ray2 = normalize(intersectionPoint - u_cameraGridPosition);
+    // Extract forward vector from camera
+    mat3 orientationMatrix = mat3(u_cameraModelMatrix);
+    vec3 forwardCameraVector = -orientationMatrix[2];
+    vec3 ray2 = intersectionPoint - u_cameraGridPosition;
     float dotResult = dot(forwardCameraVector, ray2);
     if (dotResult < 0.0)
         intersectionPoint = intersectionPoint * -1.0;
 
 
     // Screen space position
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(intersectionPoint, 1.0); // Position on the XZ plane
+    //gl_Position = projectionMatrix * modelViewMatrix * vec4(intersectionPoint, 1.0); // Position on the XZ plane
     //gl_Position = projectionMatrix * modelViewMatrix * vec4(vec3(posFrontCamera), 1.0); // Position in front of the camera
+    gl_Position = projectionMatrix * viewMatrix * vec4(intersectionPoint, 1.0);
+    //gl_Position = projectionMatrix * viewMatrix * vec4(worldPosition, 1.0);
     //gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); // Default geometry
 }
 `
