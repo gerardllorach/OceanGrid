@@ -325,6 +325,8 @@ function updateCameraGrid(){
     // Find intersection between frustrum and XZ plane
     intersectPoint.copy(rayDirection).normalize().multiplyScalar(cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
     intersectPoint.y = 0;
+    // HACK: COUNTER THE OTHER HACK IN LINE ~400
+    intersectPoint.multiplyScalar(-1);
     calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
   }
 }
