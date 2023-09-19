@@ -142,10 +142,15 @@ let gpuGridMat = new THREE.ShaderMaterial({
   vertexShader: myVertShader,
   fragmentShader: myFragShader,
   uniforms: {
-    u_time: { value: new Date().getTime()}
+    u_time: { value: new Date().getTime()},
+    u_cameraModelMatrix: {value: cameraGrid.matrix},
+    u_cameraGridPosition: {value: cameraGrid.position},
+    u_cameraViewportScale: {value: new THREE.Vector2(1, 1)},
   }
 });
+//gpuGridMat.side = THREE.DoubleSide;
 let gpuGrid = new THREE.Mesh(staticPlaneGeom, gpuGridMat);
+gpuGrid.frustrumculled = false;
 
 scene.add( oceanGrid );
 scene.add( oceanGridProjected );
@@ -197,6 +202,7 @@ function updatePlane(inputCamera){
     camera.updateMatrix();
     tempVec4 = tempVec4.applyMatrix4(camera.matrix, tempVec4);
     camera.translateZ(distanceFrontCamera);
+    camera.updateMatrix();
     // Homogeneous division if needed
     if (tempVec4.w != 0)
       tempVec4.divideScalar(tempVec4.w);
@@ -273,6 +279,7 @@ function updateCameraGrid(){
   cameraUser.updateMatrix();
   tempVec4 = tempVec4.applyMatrix4(cameraUser.matrix, tempVec4);
   cameraUser.translateZ(distanceFrontCamera);
+  cameraUser.updateMatrix();
   // Homogeneous division if needed
   if (tempVec4.w != 0)
     tempVec4.divideScalar(tempVec4.w);
@@ -415,6 +422,7 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
     // TODO: DO NOT PAINT
     console.log("Do not paint (bottom cameraUser frustrum looking at horizon).")
   }
+  cameraGrid.updateMatrix();
 }
 
 
@@ -440,6 +448,13 @@ function updateObjectMatrixAccordingToCamera(node, inCam){
 
 
 
+// Update uniforms
+function updateUniforms(){
+  // THIS GIVES ERROR, BUT IT SEEMS THAT IT IS NOT NECESSARY, VALUES ARE UPDATED AUTOMATICALLY
+  //gpuGrid.material.uniforms.u_cameraModelMatrix = cameraUser.matrix;
+  gpuGrid.material.uniforms.u_cameraViewportScale.y = yHeightScale;
+  gpuGrid.material.uniforms.u_cameraViewportScale.uniformsNeedUpdate = true;
+}
 
 
 
@@ -495,6 +510,8 @@ function animate() {
   updateCameraGrid();
   // Update grid from camera
   updatePlane(cameraGrid);
+  // Update uniforms for grid gpu
+  updateUniforms();
   
   // Helpers
   updateObjectMatrixAccordingToCamera(coneObj);
