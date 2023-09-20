@@ -136,7 +136,8 @@ oceanGridProjected.frustrumculled = false;
 
 // OCEAN GRID GPU-PROJECTED
 divisions = 200;
-let gpuGridGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
+let extraYsubdivisionFactor = 4;
+let gpuGridGeom = new THREE.PlaneGeometry( size, size, divisions , divisions * extraYsubdivisionFactor );
 // Randomize grid vertex positions to avoid aliasing
 let vertices = gpuGridGeom.attributes.position.array;
 for (let i = 0; i < divisions * divisions - 1; i++){
@@ -147,7 +148,7 @@ for (let i = 0; i < divisions * divisions - 1; i++){
     let step = 0.5 * size/divisions;
     let randNum = (Math.random() - 1) * 2;
     vertices[i*3] = x + randNum * step;
-    vertices[i*3 + 1] = y + randNum * step;
+    vertices[i*3 + 1] = y + randNum * step / extraYsubdivisionFactor; // More divisions in this axis
   }
 }
 
