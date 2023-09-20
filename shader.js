@@ -10,7 +10,6 @@
 // Use VS plugin "Comment tagged templates" and add /* glsl */
 export const myVertShader = /* glsl */ `
 
-#define distanceFromCamera 5.0
 #define PI 3.141592653589793
 precision lowp float;
 
