@@ -11,12 +11,15 @@
 export const myVertShader = /* glsl */ `
 
 #define distanceFromCamera 5.0
+#define PI 3.141592653589793
 precision lowp float;
 
+uniform float u_time;
 uniform mat4 u_cameraModelMatrix;
 uniform vec3 u_cameraGridPosition;
 uniform vec2 u_cameraViewportScale;
 
+varying vec3 v_normal;
 
 void main() {
     // Buffer geometry
@@ -62,6 +65,16 @@ void main() {
         intersectionPoint = intersectionPoint * -1.0;
 
 
+    float f = 2.0 * PI * u_time/1000.0 + intersectionPoint.x*10.0;
+    intersectionPoint.y = intersectionPoint.y + 0.2 * sin(f);
+
+    // Declare tangent and binormal
+    vec3 tangent = vec3(1.0, 0.0, 0.0);
+    vec3 binormal = vec3(0.0, 0.0, 1.0);
+    tangent.x = sin(f);
+    tangent.y = cos(f);
+    tangent = normalize(tangent);
+    v_normal = normalize(cross(binormal, tangent));
     // Screen space position
     //gl_Position = projectionMatrix * modelViewMatrix * vec4(intersectionPoint, 1.0); // Position on the XZ plane
     //gl_Position = projectionMatrix * modelViewMatrix * vec4(vec3(posFrontCamera), 1.0); // Position in front of the camera
@@ -81,11 +94,14 @@ precision lowp float;
 // cameraPosition
 // viewMatrix
 
+varying vec3 v_normal;
+
 
 void main() {
 
 
     // Output color
-    gl_FragColor = vec4(1.0, 1.0, 0.0, 0.7);
+    gl_FragColor = vec4(((v_normal + 1.0) * 0.5), 0.7);
+    //gl_FragColor = vec4(1.0, 1.0, 0.0, 0.7);
 }
 `

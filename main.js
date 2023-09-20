@@ -135,7 +135,7 @@ oceanGridProjected.material.transparent = true;
 oceanGridProjected.frustrumculled = false;
 
 // OCEAN GRID GPU-PROJECTED
-divisions = 100;
+divisions = 200;
 let gpuGridGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
 let gpuGridMat = new THREE.ShaderMaterial({
   blending: THREE.NormalBlending,
@@ -143,7 +143,7 @@ let gpuGridMat = new THREE.ShaderMaterial({
   vertexShader: myVertShader,
   fragmentShader: myFragShader,
   uniforms: {
-    u_time: { value: new Date().getTime()},
+    u_time: { value: new Date().getMilliseconds()},
     u_cameraModelMatrix: {value: cameraGrid.matrix},
     u_cameraGridPosition: {value: cameraGrid.position},
     u_cameraViewportScale: {value: new THREE.Vector2(1, 1)},
@@ -448,6 +448,9 @@ function updateObjectMatrixAccordingToCamera(node, inCam){
 // Update uniforms
 function updateUniforms(){
   cameraGrid.updateMatrix();
+  gpuGrid.material.uniforms.u_time.value = new Date().getMilliseconds();
+  gpuGrid.material.uniforms.u_time.uniformsNeedUpdate = true;
+
   gpuGrid.material.uniforms.u_cameraModelMatrix.value = cameraGrid.matrix;
   gpuGrid.material.uniforms.u_cameraModelMatrix.uniformsNeedUpdate = true;
   
