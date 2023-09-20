@@ -137,13 +137,28 @@ oceanGridProjected.frustrumculled = false;
 // OCEAN GRID GPU-PROJECTED
 divisions = 200;
 let gpuGridGeom = new THREE.PlaneGeometry( size, size, divisions, divisions );
+// Randomize grid vertex positions to avoid aliasing
+let vertices = gpuGridGeom.attributes.position.array;
+for (let i = 0; i < divisions * divisions - 1; i++){
+  let x = vertices[i*3];
+  let y = vertices[i*3 + 1];
+  // Avoid modifying sides of the plane
+  if (x != Math.abs(size/2) && y != Math.abs(size/2)){
+    let step = 0.5 * size/divisions;
+    let randNum = (Math.random() - 1) * 2;
+    vertices[i*3] = x + randNum * step;
+    vertices[i*3 + 1] = y + randNum * step;
+  }
+}
+
+let time = new Date().getTime();
 let gpuGridMat = new THREE.ShaderMaterial({
   blending: THREE.NormalBlending,
   transparent: true,
   vertexShader: myVertShader,
   fragmentShader: myFragShader,
   uniforms: {
-    u_time: { value: new Date().getMilliseconds()},
+    u_time: { value: new Date().getTime() - time},
     u_cameraModelMatrix: {value: cameraGrid.matrix},
     u_cameraGridPosition: {value: cameraGrid.position},
     u_cameraViewportScale: {value: new THREE.Vector2(1, 1)},
@@ -448,7 +463,8 @@ function updateObjectMatrixAccordingToCamera(node, inCam){
 // Update uniforms
 function updateUniforms(){
   cameraGrid.updateMatrix();
-  gpuGrid.material.uniforms.u_time.value = new Date().getMilliseconds();
+
+  gpuGrid.material.uniforms.u_time.value = new Date().getTime() - time;
   gpuGrid.material.uniforms.u_time.uniformsNeedUpdate = true;
 
   gpuGrid.material.uniforms.u_cameraModelMatrix.value = cameraGrid.matrix;
