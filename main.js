@@ -196,6 +196,8 @@ function updatePlane(inputCamera){
     // Use temp vector
     tempVec4.set(defaultVertices[i*3], defaultVertices[i*3 + 1], defaultVertices[i*3 + 2], 1);
     // Scale plane height according to camera orientation and aspect
+    tempVec4.x = tempVec4.x * cameraUser.aspect;
+    tempVec4.z = tempVec4.z * cameraUser.aspect;
     tempVec4.y = tempVec4.y * yHeightScale;
     
     // Move vertices in front of the camera
@@ -452,8 +454,11 @@ function updateUniforms(){
   gpuGrid.material.uniforms.u_cameraGridPosition.value = cameraGrid.position;
   gpuGrid.material.uniforms.u_cameraGridPosition.uniformsNeedUpdate = true;
 
+  gpuGrid.material.uniforms.u_cameraViewportScale.value.x = cameraUser.aspect;
   gpuGrid.material.uniforms.u_cameraViewportScale.value.y = yHeightScale;
   gpuGrid.material.uniforms.u_cameraViewportScale.uniformsNeedUpdate = true;
+
+
 
   
   
