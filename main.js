@@ -140,7 +140,7 @@ let extraYsubdivisionFactor = 4;
 let gpuGridGeom = new THREE.PlaneGeometry( size, size, divisions , divisions * extraYsubdivisionFactor );
 // Randomize grid vertex positions to avoid aliasing
 let vertices = gpuGridGeom.attributes.position.array;
-for (let i = 0; i < divisions * divisions - 1; i++){
+for (let i = 0; i < (vertices.length/3) - 1; i++){
   let x = vertices[i*3];
   let y = vertices[i*3 + 1];
   // Avoid modifying sides of the plane
@@ -167,7 +167,7 @@ let gpuGridMat = new THREE.ShaderMaterial({
 });
 gpuGridMat.side = THREE.DoubleSide;
 let gpuGrid = new THREE.Mesh(gpuGridGeom, gpuGridMat);
-gpuGrid.frustrumculled = false;
+//gpuGrid.frustrumculled = false;
 
 scene.add( oceanGrid );
 scene.add( oceanGridProjected );
