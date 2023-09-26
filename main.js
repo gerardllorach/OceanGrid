@@ -187,14 +187,22 @@ scene.add( gpuGrid);
 
 
 
-let tempVec3 = new THREE.Vector3();
-let tempVec3a = new THREE.Vector3();
-let tempVec3b = new THREE.Vector3();
-let tempVec4 = new THREE.Vector4();
-let tempVec4a = new THREE.Vector4();
-let tempVec4b = new THREE.Vector4();
+
+
+let rowCentralVertex = new THREE.Vector3();
+let rayCameraUserToRowCentralVertex = new THREE.Vector3();
+let intersectionPoint = new THREE.Vector3();
+let rayCameraUserToIntersectPoint = new THREE.Vector3();
+
+let camGridPosition = new THREE.Vector3();
 let cameraUserForward = new THREE.Vector3();
-let rayDirection = new THREE.Vector3();
+let oppositeRowCentralVertex = new THREE.Vector3();
+let secondIntersectionPoint = new THREE.Vector3();
+let gridTopCentralVertex = new THREE.Vector3();
+let gridBottomCentralVertex = new THREE.Vector3();
+
+let tempVec4 = new THREE.Vector4();
+
 function updatePlane(inputCamera){
   // Temporal, moves the vertices in front of camera using THREE operations
   //updateObjectMatrixAccordingToCamera(oceanGrid);
@@ -227,39 +235,43 @@ function updatePlane(inputCamera){
       tempVec4.divideScalar(tempVec4.w);
 
     // Calculate intersection with xz plane and camera ray
-    rayDirection.set(tempVec4.x, tempVec4.y, tempVec4.z);
-    rayDirection.subVectors(rayDirection, camera.position);
+    rowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
+    rayCameraUserToRowCentralVertex.subVectors(rowCentralVertex, camera.position);
     // Ray is not parallel to the horizon
-    if (rayDirection.y !== 0){
-      let t = (0 - camera.position.y) / rayDirection.y;
+    if (rayCameraUserToRowCentralVertex.y !== 0){
+      let t = (0 - camera.position.y) / rayCameraUserToRowCentralVertex.y;
       // Intersection point
-      tempVec3 = tempVec3.copy(camera.position).add(rayDirection.multiplyScalar(t));
+      intersectionPoint = intersectionPoint.copy(camera.position).add(rayCameraUserToRowCentralVertex.multiplyScalar(t));
+      // Recalculate ray (even if not used?) because it was modified by scalar
+      rayCameraUserToRowCentralVertex.subVectors(rowCentralVertex, camera.position);
     }
 
+    rayCameraUserToIntersectPoint.subVectors(intersectionPoint, camera.position)
     // TODO: if cameraForward is opposite from ray direction, flip ray direction?
     cameraUser.getWorldDirection(cameraUserForward);
-    let dotResult = cameraUserForward.dot(rayDirection);
+    let dotResult = cameraUserForward.dot(rayCameraUserToIntersectPoint);
     if (dotResult < 0){
-      tempVec3.multiplyScalar(-1);
+      intersectionPoint.multiplyScalar(-1);
+      
     }
+    //console.log(Math.sign(dotResult));
 
 
 
     // Reassign position to vertex
-    if (isNaN(tempVec4.x) || isNaN(tempVec4.y) || isNaN(tempVec4.z) || isNaN(tempVec4.w)){
+    if (isNaN(rowCentralVertex.x) || isNaN(rowCentralVertex.y) || isNaN(rowCentralVertex.z)){
       debugger;
     }
     // In front of the camera
-    vertices[i*3] = tempVec4.x;
-    vertices[i*3 + 1] = tempVec4.y; 
-    vertices[i*3 + 2] = tempVec4.z;
+    vertices[i*3] = rowCentralVertex.x;
+    vertices[i*3 + 1] = rowCentralVertex.y; 
+    vertices[i*3 + 2] = rowCentralVertex.z;
     // On the XZ plane
-    projectedVertices[i*3] = tempVec3.x;
-    projectedVertices[i*3 + 1] = tempVec3.y; 
-    projectedVertices[i*3 + 2] = tempVec3.z;
+    projectedVertices[i*3] = intersectionPoint.x;
+    projectedVertices[i*3 + 1] = intersectionPoint.y; 
+    projectedVertices[i*3 + 2] = intersectionPoint.z;
 
   }
-  // Reset matrx
 
   // Update geometry
   let geom = oceanGrid.geometry;
@@ -269,7 +281,6 @@ function updatePlane(inputCamera){
   geom = oceanGridProjected.geometry;
   oceanGridProjected.geometry.dispose();
   oceanGridProjected.geometry = new THREE.WireframeGeometry(geom.parameters.geometry);
-  //oceanGridProjected.scale.set(1.5,1.5, 1.5);
 }
 
 
@@ -277,8 +288,6 @@ function updatePlane(inputCamera){
 
 
 // Update the camera grid position and orientation
-let intersectPoint = new THREE.Vector3();
-let rowCentralVertex = new THREE.Vector3();
 function updateCameraGrid(){
 
   // Check if central vertex of top row is inside frustrum
@@ -306,32 +315,30 @@ function updateCameraGrid(){
   rowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
 
   // Calculate intersection with xz plane and cameraUser ray
-  let rayDirection = tempVec4a.subVectors(tempVec4, cameraUser.position);
+  rayCameraUserToRowCentralVertex = rayCameraUserToRowCentralVertex.subVectors(rowCentralVertex, cameraUser.position);
 
   
 
   // Ray is not parallel to the horizon
-  if (rayDirection.y !== 0){
-    let t = (0 - cameraUser.position.y) / rayDirection.y;
+  if (rayCameraUserToRowCentralVertex.y !== 0){
+    let t = (0 - cameraUser.position.y) / rayCameraUserToRowCentralVertex.y;
     // Intersection point
-    intersectPoint.copy(cameraUser.position).add(rayDirection.multiplyScalar(t));
-    let magnitude = intersectPoint.length();
+    intersectionPoint.copy(cameraUser.position).add(rayCameraUserToRowCentralVertex.multiplyScalar(t));
+    let magnitude = intersectionPoint.length();
 
     // If ray points behind the cameraUser
-    let dirA = tempVec3.subVectors(rowCentralVertex, cameraUser.position);
-    let dirB = tempVec3a.subVectors(intersectPoint, cameraUser.position);
+    let dirA = rayCameraUserToRowCentralVertex.subVectors(rowCentralVertex, cameraUser.position);
+    let dirB = rayCameraUserToIntersectPoint.subVectors(intersectionPoint, cameraUser.position);
     let dotResult = dirA.dot(dirB);
     if(dotResult < 0){
       // Find intersection between frustrum and XZ plane
-      intersectPoint.copy(rayDirection).normalize().multiplyScalar(cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
-      intersectPoint.y = 0;
-      calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
+      intersectionPoint.copy(rayCameraUserToRowCentralVertex).normalize().multiplyScalar(cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
+      intersectionPoint.y = 0;
+      calculateCameraGridMatrix(intersectionPoint, rowCentralVertex);
     } 
     else if (magnitude > cameraUser.far){
       // APPROXIMATING HORIZON, RECALCULATE CAMERA GRID MATRIX
-      // HACK, for some reason, the intersection point is on the opposite position
-      intersectPoint.multiplyScalar(-1);
-      calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
+      calculateCameraGridMatrix(intersectionPoint, rowCentralVertex);
     }
     else {
       // DEFAULT, NO MODIFICATION
@@ -341,26 +348,20 @@ function updateCameraGrid(){
   // LOOKING AT HORIZON, RECALCULATE CAMERA GRID MATRIX
   else {
     // Find intersection between frustrum and XZ plane
-    intersectPoint.copy(rayDirection).normalize().multiplyScalar(cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
-    intersectPoint.y = 0;
-    // HACK: COUNTER THE OTHER HACK IN LINE ~400
-    intersectPoint.multiplyScalar(-1);
-    calculateCameraGridMatrix(intersectPoint, rowCentralVertex);
+    intersectionPoint.copy(rayCameraUserToRowCentralVertex).normalize().multiplyScalar(cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
+    intersectionPoint.y = 0;
+
+    calculateCameraGridMatrix(intersectionPoint, rowCentralVertex);
   }
 }
 
 
-let oppositeRowCentralVertex = new THREE.Vector3();
-let secondIntersectPoint = new THREE.Vector3();
 let camGridTarget = new THREE.Vector3();
 // Camera grid must be moved
-function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
-  if (intersectPoint.y > 0.0001)
-    console.log(intersectPoint);
-
+function calculateCameraGridMatrix(intersectionPoint, rowCentralVertex){
   // Find camera position using top row central vertex, intersection point and distance from camera to top row central vertex
   let distanceCamToVertex = cameraUser.position.distanceTo(rowCentralVertex);
-  let camGridPosition = tempVec3b.subVectors(intersectPoint, rowCentralVertex).normalize().multiplyScalar(distanceCamToVertex);
+  camGridPosition.subVectors(rowCentralVertex, intersectionPoint).normalize().multiplyScalar(distanceCamToVertex);
   camGridPosition.add(rowCentralVertex);
   
   cameraGrid.position.copy(camGridPosition);
@@ -390,21 +391,21 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
   oppositeRowCentralVertex.set(tempVec4.x, tempVec4.y, tempVec4.z);
 
   // Calculate intersection with xz plane and cameraUser ray
-  let rayDirection = tempVec4a.subVectors(tempVec4, cameraUser.position);
+  rayCameraUserToRowCentralVertex.subVectors(oppositeRowCentralVertex, cameraUser.position);
   // Ray is not parallel to the horizon
-  if (rayDirection.y !== 0){
-    let t = (0 - cameraUser.position.y) / rayDirection.y;
+  if (rayCameraUserToRowCentralVertex.y !== 0){
+    let t = (0 - cameraUser.position.y) / rayCameraUserToRowCentralVertex.y;
     // Intersection point
-    secondIntersectPoint.copy(cameraUser.position).add(rayDirection.multiplyScalar(t));
-    let magnitude = secondIntersectPoint.length();
+    secondIntersectionPoint.copy(cameraUser.position).add(rayCameraUserToRowCentralVertex.multiplyScalar(t));
+    let magnitude = secondIntersectionPoint.length();
     if (magnitude > cameraUser.far){
       // APPROXIMATING HORIZON
       // TODO: DO NOT PAINT
       console.log("Do not paint (cameraUser looking towards horizon but too far).");
     }
     // If ray points behind the cameraUser
-    let dirA = tempVec3.subVectors(oppositeRowCentralVertex, cameraUser.position);
-    let dirB = tempVec3a.subVectors(secondIntersectPoint, cameraUser.position);
+    let dirA = rayCameraUserToRowCentralVertex.subVectors(oppositeRowCentralVertex, cameraUser.position);
+    let dirB = rayCameraUserToIntersectPoint.subVectors(secondIntersectionPoint, cameraUser.position);
     let dotResult = dirA.dot(dirB);
     if(dotResult < 0){
       // TODO: DO NOT PAINT
@@ -412,17 +413,11 @@ function calculateCameraGridMatrix(intersectPoint, rowCentralVertex){
     } else {
       // CONTINUE SCRIPT
       // CALCULATE CAMERA LOOKAT AND oceanGrid HEIGHT (RANGE)
-      //camGridTarget.addVectors(rowCentralVertex, oppositeRowCentralVertex).multiplyScalar(0.5); // LOOKAT CAMERAUSER CENTER GRID Somewhat satisfactory, but artifacts are present (when moving cameraUser up)
-      //camGridTarget.addVectors(intersectPoint, secondIntersectPoint).multiplyScalar(0.5);
-      // HACK: for some reason intersect point is in the opposite position in the XZ plane
-      intersectPoint.multiplyScalar(-1);
       // Extend intersect point to horizon
-      intersectPoint.normalize().multiplyScalar(cameraUser.far);
+      intersectionPoint.normalize().multiplyScalar(cameraUser.far);
       // Calculate top and bottom central vertices of ocean grid
-      let gridTopCentralVertex = tempVec3.subVectors(intersectPoint, cameraGrid.position).normalize().multiplyScalar(distanceFrontCamera).add(cameraGrid.position);
-      let gridBottomCentralVertex = tempVec3a.subVectors(secondIntersectPoint, cameraGrid.position).normalize().multiplyScalar(distanceFrontCamera).add(cameraGrid.position);
-      //sph1.position.copy(gridTopCentralVertex);
-      // sph2.position.copy(gridBottomCentralVertex);
+      gridTopCentralVertex.subVectors(intersectionPoint, cameraGrid.position).normalize().multiplyScalar(distanceFrontCamera).add(cameraGrid.position);
+      gridBottomCentralVertex.subVectors(secondIntersectionPoint, cameraGrid.position).normalize().multiplyScalar(distanceFrontCamera).add(cameraGrid.position);
       let yRange = gridBottomCentralVertex.distanceTo(gridTopCentralVertex);
       yHeightScale = yRange / 4.5;
       camGridTarget.addVectors(gridTopCentralVertex, gridBottomCentralVertex).multiplyScalar(0.5);
