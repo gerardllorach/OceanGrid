@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'https://threejs.org/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from '/OceanGrid/lib/three.js/examples/jsm/controls/OrbitControls.js';
 
 import {myVertShader, myFragShader} from '/OceanGrid/shader.js';
 
